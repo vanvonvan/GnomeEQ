@@ -4,7 +4,7 @@ EXT_DIR = $(HOME)/.local/share/gnome-shell/extensions/$(UUID)
 SCHEMA_DIR = $(EXT_SRC)/schemas
 CONF_DIR = $(HOME)/.config/pipewire/filter-chain.conf.d
 
-.PHONY: all schemas conf install-conf test verify link install uninstall pack nested devkit
+.PHONY: all schemas conf install-conf test verify link install uninstall pack devkit
 
 all: schemas conf
 
@@ -67,15 +67,22 @@ pack: schemas conf
 		--extra-source=data \
 		$(EXT_SRC)
 
-# Launch a VISIBLE nested GNOME Shell (a window on your desktop) with GnomeEQ
-# enabled. This is the way to click the menu without logging out. Plain
-# `--wayland` is nested by default — it is `--display-server` (implied by
-# `--devkit`) that makes a shell take over the screen instead.
-nested: link
-	bash tools/run-nested.sh
-
-# Same, but via the devkit backend. NOTE: `--devkit` implies display-server
-# mode, so it renders into a virtual monitor and shows NO window — useful only
-# for headless load checks. Prefer `make nested` for interactive testing.
+# Launch an isolated nested GNOME Shell with GnomeEQ enabled, to click the
+# menu without logging out.
+#
+# The window is easy to miss: `gnome-shell --devkit` is its own display server
+# (it creates wayland-1 and never connects to the host's wayland-0), and the
+# thing you actually see is the separate `mutter-devkit` process, a viewer onto
+# the nested session's virtual monitor. It carries no useful title — find it
+# with Alt+Tab or the overview and look for "mutter-devkit".
+#
+# Note `gnome-shell --wayland` is NOT an alternative: despite --help-all
+# advertising --display-server as "rather than nested", plain --wayland takes
+# the native backend and dies with "Failed to take control of the session:
+# EBUSY" whenever a compositor already owns the seat.
+#
+# The nested shell shares the real audio graph, so moving a band in there does
+# change this machine's sound. Its dconf is isolated, so presets saved in there
+# do not persist.
 devkit: link
 	bash tools/run-devkit.sh

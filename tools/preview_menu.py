@@ -6,7 +6,7 @@ otherwise costs a full nested-shell restart. This draws the same geometry and
 colours the stylesheet uses, so a palette can be judged in a second. It is a
 design aid, NOT a screenshot of the product — never present its output as one.
 
-Run: python3 tools/preview_menu.py  ->  assets/../scratchpad preview path printed
+Run: python3 tools/preview_menu.py   -> writes assets/menu-rows.png
 """
 import os
 import sys
@@ -112,4 +112,7 @@ def main(out):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "menu-preview.png")
+    default = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "assets", "menu-rows.png")
+    main(sys.argv[1] if len(sys.argv) > 1 else default)

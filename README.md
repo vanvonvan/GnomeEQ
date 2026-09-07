@@ -18,6 +18,18 @@
 
 ---
 
+## The band rows
+
+<p align="center">
+  <img src="assets/menu-rows.png" alt="GnomeEQ band rows, light and dark" width="100%">
+</p>
+
+<p align="center">
+  <sub>Rendered by <code>tools/preview_menu.py</code> — an illustration of the
+  row layout and frequency-range colours on the dark and light shell themes,
+  not a screenshot.</sub>
+</p>
+
 ## Features
 
 - 🎛️ **Eleven bands spanning the full audible range, 20 Hz → 20 kHz**, ±12 dB each, on the round ISO 266 octave centres. Every band is a peaking filter, so a slider delivers its gain *at the frequency on its label* — verified by measurement, not assumed.
@@ -182,7 +194,7 @@ the sliders off entirely in Preferences for a compact, presets-only menu.
 make test      # headless logic tests (gjs, no shell and no audio needed)
 make verify    # prove the DSP by MEASURING it — see below
 make conf      # regenerate the PipeWire filter chain
-make devkit    # visible, isolated nested GNOME Shell with GnomeEQ enabled
+make devkit    # isolated nested GNOME Shell with GnomeEQ enabled
 make pack      # build a distributable zip
 ```
 
@@ -206,8 +218,22 @@ Preamp, set to -6 dB (Mult=0.5012) with bands flat:
 
 It restores your original routing when it finishes. Needs `numpy`.
 
-`tools/preview_menu.py` renders a mock of the slider rows on the light and dark
-shell themes side by side. The live shell caches ES modules, so a styling tweak
+`make devkit` opens an isolated nested Shell so the menu can be clicked without
+logging out. **The window is easy to miss:** `gnome-shell --devkit` is its own
+display server (it creates `wayland-1` and never connects to the host's
+`wayland-0`), and what you actually see is a separate `mutter-devkit` process —
+a viewer onto the nested session's virtual monitor. It has no useful title, so
+find it with Alt+Tab and look for *mutter-devkit*. The nested shell shares the
+real audio graph, so moving a band in there really does change your sound; its
+dconf is isolated, so presets saved in there do not persist.
+
+(`gnome-shell --wayland` is not an alternative on GNOME 50: despite
+`--help-all` advertising `--display-server` as "rather than nested", plain
+`--wayland` takes the native backend and dies with `Failed to take control of
+the session: EBUSY` whenever a compositor already owns the seat.)
+
+`tools/preview_menu.py` renders the slider rows on the light and dark shell
+themes side by side. The live shell caches ES modules, so a styling tweak
 otherwise costs a full nested-shell restart; this lets a palette be judged in a
 second. It is a design aid, not a screenshot of the product.
 
@@ -235,8 +261,8 @@ gnomeeq@vanvonvan.github.io/   the installable extension (this dir is what ships
   icons/              symbolic panel icon
 tests/              headless gjs logic tests (constants, presets)
 tools/              gen_sink_conf.py, verify_eq.py, gen_art.py,
-                    preview_menu.py, run-devkit.sh, run-nested.sh
-assets/             banner / logo / icon
+                    preview_menu.py, run-devkit.sh
+assets/             banner / logo / icon / social preview / row illustration
 ```
 
 ## Credits
