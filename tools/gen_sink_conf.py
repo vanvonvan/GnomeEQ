@@ -11,7 +11,6 @@ extremes would make the 31 Hz and 16 kHz sliders feel dead while wasting
 headroom on subsonic/ultrasonic content nobody can hear. Peaking filters put
 the gain where the label says it is.
 """
-import ast
 import os
 import sys
 
@@ -141,22 +140,34 @@ def check_compiled_schema(schema_dir):
     ten-element default after the grid grew to eleven. dconf then hands the
     extension a short array on first run. sanitizeGains() pads it, so nothing
     breaks loudly, which is exactly why this needs a test.
+
+    Read the default through GSettings rather than `gsettings get`: that command
+    returns the EFFECTIVE value, so as soon as the developer has actually used
+    the equalizer their own curve is what gets checked — the guard failed with
+    "not flat" on a perfectly good schema, and a stored value would equally
+    have masked a genuinely stale one. get_default_value() ignores dconf and
+    reports what the compiled schema really says.
     """
-    import subprocess
     try:
-        out = subprocess.run(
-            ["gsettings", "--schemadir", schema_dir, "get",
-             "org.gnome.shell.extensions.gnomeeq", "band-gains"],
-            capture_output=True, text=True, timeout=15)
-    except (OSError, subprocess.SubprocessError) as exc:
-        return [f"could not read the compiled schema: {exc}"]
-    if out.returncode:
+        import gi
+        gi.require_version("Gio", "2.0")
+        from gi.repository import Gio, GLib
+    except (ImportError, ValueError) as exc:
+        return [f"could not load the GLib bindings (python3-gi): {exc}"]
+    try:
+        source = Gio.SettingsSchemaSource.new_from_directory(
+            schema_dir, None, True)
+        schema = source.lookup("org.gnome.shell.extensions.gnomeeq", False)
+    except GLib.Error as exc:
         return ["compiled schema unreadable (run `make schemas`): "
-                f"{out.stderr.strip()}"]
-    try:
-        value = ast.literal_eval(out.stdout.strip())
-    except (ValueError, SyntaxError):
-        return [f"unparseable band-gains default: {out.stdout.strip()!r}"]
+                f"{exc.message}"]
+    if schema is None:
+        return [f"no gnomeeq schema in {schema_dir} — run `make schemas`"]
+    default = Gio.Settings.new_full(schema, None, None).get_default_value(
+        "band-gains")
+    if default is None:
+        return ["the compiled schema has no band-gains key"]
+    value = default.unpack()
     if len(value) != len(BANDS):
         return [f"compiled schema default has {len(value)} gains but there are "
                 f"{len(BANDS)} bands — run `make schemas`"]

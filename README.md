@@ -169,10 +169,31 @@ pw-link -l | grep -A1 '^effect_output.gnomeeq:output_FL'
 
 If the chain isn't loaded, use **Reinstall the audio engine** in Preferences.
 
+**It worked, then stopped — after a suspend, a reboot, or a PipeWire restart.**
+`filter-chain.service` is `BindsTo=pipewire.service`, so anything that stops
+PipeWire stops the chain too, and nothing puts it back on its own: the stop is
+clean, so the unit's `Restart=on-failure` never fires, and `BindsTo` propagates
+stops but not starts. Because the *configured* default output still names the
+GnomeEQ sink, WirePlumber quietly falls back to the hardware — audio keeps
+playing, perfectly, with the equalizer no longer in the path. Nothing is logged
+and nothing sounds broken until you move a slider and hear no change.
+
+GnomeEQ starts the service itself whenever it finds the sink missing — at login
+and each time you open the menu — so this should heal on its own. By hand:
+
+```sh
+systemctl --user start filter-chain.service
+```
+
 **The sliders do nothing.** Gains are pushed to the graph but cannot be read
-back from it, so a silent failure looks like nothing happening. Run
-`make verify` from a clone — it measures the sink and will tell you whether the
-DSP is responding.
+back from it, so a silent failure looks like nothing happening. First check
+that the chain is actually running (above) — a stopped `filter-chain.service`
+is by far the likeliest cause. Then run `make verify` from a clone: it measures
+the sink and will tell you whether the DSP is responding. **Stop other audio
+first** — `make verify` records whatever is playing through the sink along with
+its own probe, so a browser playing in the background makes it report wrong
+numbers on a perfectly good chain. It refuses to run and names the app rather
+than measuring through it.
 
 **Changing my output in GNOME's menu bypassed the EQ.** That is inherent: apps
 follow the default output, so selecting a device there makes *that* device the
@@ -203,8 +224,8 @@ back as a template of zeros regardless of their live values, so neither
 `pw-cli` returning success nor a `pw-dump` read-back tells you whether a gain
 actually took effect. The only trustworthy check is to measure the audio, so
 `tools/verify_eq.py` creates a null sink, re-links the chain into it (silently),
-plays a ten-tone probe through the equalizer, records the result, and runs a
-single-bin DFT at every band centre:
+plays an eleven-tone probe through the equalizer, records the result, and runs
+a single-bin DFT at every band centre:
 
 ```
 band       freq   own gain  verdict
@@ -217,6 +238,14 @@ Preamp, set to -6 dB (Mult=0.5012) with bands flat:
 ```
 
 It restores your original routing when it finishes. Needs `numpy`.
+
+**Nothing else may be playing.** The measurement records the chain's output, so
+any app feeding the sink is captured along with the probe — and the result is
+not a failure but confident nonsense: a browser playing during the reference
+recording reported every band about 5 dB high, and one playing during a single
+band's recording reported that band at +2.20 dB, on a chain that measures
++12.00 across the board once the graph is quiet. `verify_eq.py` checks for
+streams into the sink first and names them instead of measuring through them.
 
 `make devkit` opens an isolated nested Shell so the menu can be clicked without
 logging out. **The window is easy to miss:** `gnome-shell --devkit` is its own

@@ -65,30 +65,54 @@ export default class GnomeEQExtension extends Extension {
         this._settings = null;
     }
 
-    // Install the chain if it is missing or out of date, take the default
-    // sink so every app is covered, then push the stored curve into the graph.
+    // Install the chain if it is missing or out of date, make sure the daemon
+    // serving it is actually running, take the default sink so every app is
+    // covered, then push the stored curve into the graph.
     async _startEngine() {
-        if (this._engine.confNeedsInstall()) {
-            // This restarts filter-chain.service, which briefly interrupts
-            // audio, so it happens only when the config really differs.
-            await this._engine.installEngine();
-        }
-
-        if (!await this._engine.isEngineRunning()) {
+        if (!await this._engine.ensureEngine()) {
             Main.notifyError('GnomeEQ',
-                'The GnomeEQ audio sink did not appear. Is PipeWire running?');
+                'The GnomeEQ audio sink did not appear. Check ' +
+                '`systemctl --user status filter-chain.service`.');
             return;
         }
+
+        await this._applyRouting();
+        this._pushToGraph();
+    }
+
+    // The sink can vanish while the Shell keeps running: a PipeWire restart
+    // takes filter-chain.service down with it and nothing starts it again (see
+    // PipeWireEQ.ensureEngine). Audio falls back to the hardware silently, so
+    // there is no moment at which we could have warned anyone — the first
+    // symptom is moving a slider and hearing nothing change. Opening this menu
+    // is exactly what someone does next, so use it as the cue to put the chain
+    // back and re-push the curve, quietly and only when the sink is missing.
+    async recoverEngine() {
+        if (!this._engine || await this._engine.isEngineRunning())
+            return;
+        if (!await this._engine.ensureEngine())
+            return;
+
+        // The daemon restarted, so the node ids are new: the output pin and
+        // the default-sink claim both have to be re-applied.
+        await this._applyRouting();
+        this._pushToGraph();
+    }
+
+    async _applyRouting() {
+        if (!this._engine || !this._settings)
+            return;
 
         const device = this._settings.get_string(C.Keys.OUTPUT_DEVICE);
         if (device !== '')
             await this._engine.setOutputDevice(device).catch(() => {});
 
+        if (!this._engine || !this._settings)
+            return;
+
         if (this._settings.get_boolean(C.Keys.CLAIM_SINK) &&
             !await this._engine.isDefaultSink())
             await this._engine.claimDefaultSink();
-
-        this._pushToGraph();
     }
 
     // GSettings -> filter graph. The gains stored in settings are what the

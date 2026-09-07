@@ -127,9 +127,13 @@ class GnomeEQIndicator extends PanelMenu.Button {
         this._syncFromSettings();
 
         // The device list is only known once pw-dump answers, so populate it
-        // when the menu opens rather than holding a stale list.
+        // when the menu opens rather than holding a stale list. Opening the
+        // menu is also when we put the audio chain back if it went away under
+        // us — see the extension's recoverEngine.
         this.menu.connect('open-state-changed', (_menu, open) => {
             if (open) {
+                this._extension.recoverEngine().catch(error =>
+                    logError(error, 'GnomeEQ: could not restore the audio chain'));
                 this._refreshDeviceMenu();
             } else {
                 // Collapse everything so the next open starts from the default

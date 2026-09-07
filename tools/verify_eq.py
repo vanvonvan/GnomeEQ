@@ -73,6 +73,36 @@ def node_id(name):
     return None
 
 
+def streams_into_sink(nid):
+    """Apps currently feeding the EQ sink, by node name.
+
+    They have to be stopped before measuring. The harness re-links the EQ
+    output into a null sink and records that, so anything else playing through
+    the EQ is captured along with the probe — and it does not fail loudly, it
+    produces confident nonsense: a browser playing during the flat reference
+    reported every band about 5 dB high, and one playing during a single band's
+    recording reported that band at +2.20 dB. Both on a chain that measures
+    +12.00 on every band once the graph is quiet.
+    """
+    dump = pw_dump()
+    names = {}
+    for o in dump:
+        name = ((o.get("info") or {}).get("props") or {}).get("node.name")
+        if name:
+            names[o["id"]] = name
+    busy = set()
+    for o in dump:
+        if o.get("type") != "PipeWire:Interface:Link":
+            continue
+        info = o.get("info") or {}
+        if info.get("input-node-id") != nid:
+            continue
+        src = names.get(info.get("output-node-id"))
+        if src not in (None, SINK, OUT, NULL):
+            busy.add(src)
+    return sorted(busy)
+
+
 def make_probe(path):
     t = np.arange(int(SR * 4.0)) / SR
     sig = sum(TONE_AMP * np.sin(2 * np.pi * f * t + i)
@@ -144,6 +174,13 @@ def main():
         sys.exit(f"{SINK} not found — is filter-chain.service running with "
                  "the GnomeEQ config installed?")
     print(f"EQ sink node id: {nid}")
+
+    busy = streams_into_sink(nid)
+    if busy:
+        sys.exit(f"audio is playing through the EQ sink ({', '.join(busy)}) — "
+                 "stop it and re-run. Anything feeding the sink is recorded "
+                 "along with the probe, and the measurement comes out wrong "
+                 "rather than failing.")
 
     saved = physical_links()
     tmp = tempfile.mkdtemp(prefix="gnomeeq-verify-")

@@ -26,6 +26,12 @@ import * as C from './constants.js';
 // would spawn a process per pixel.
 const APPLY_DEBOUNCE_MS = 40;
 
+// systemd reports filter-chain.service active as soon as the process is
+// spawned, but its nodes reach the graph a moment later, so a single pw-dump
+// straight after a start reliably misses the sink. Poll for it instead.
+const SINK_POLL_MS = 250;
+const SINK_POLL_TRIES = 20;
+
 function runAsync(argv, cancellable = null) {
     return new Promise((resolve, reject) => {
         let proc;
@@ -57,6 +63,7 @@ export class PipeWireEQ {
         this._sinkId = null;
         this._outputId = null;
         this._applyTimer = 0;
+        this._waitTimers = new Map();
         this._pending = null;
         this._busy = false;
         this._destroyed = false;
@@ -68,8 +75,26 @@ export class PipeWireEQ {
             GLib.Source.remove(this._applyTimer);
             this._applyTimer = 0;
         }
+        // Resolve the sleeps as we cancel them, so anything awaiting one
+        // continues and sees _destroyed rather than hanging forever.
+        for (const [id, resolve] of this._waitTimers) {
+            GLib.Source.remove(id);
+            resolve();
+        }
+        this._waitTimers.clear();
         this._cancellable.cancel();
         this._pending = null;
+    }
+
+    _sleep(ms) {
+        return new Promise(resolve => {
+            const id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
+                this._waitTimers.delete(id);
+                resolve();
+                return GLib.SOURCE_REMOVE;
+            });
+            this._waitTimers.set(id, resolve);
+        });
     }
 
     // --- Engine setup -----------------------------------------------------
@@ -121,6 +146,48 @@ export class PipeWireEQ {
             this._cancellable);
         this._sinkId = null;
         this._outputId = null;
+    }
+
+    // Start the daemon that serves the chain, without disturbing it if it is
+    // already up.
+    async startService() {
+        await runAsync(['systemctl', '--user', 'start', C.CONF_SERVICE],
+            this._cancellable);
+        this._sinkId = null;
+        this._outputId = null;
+    }
+
+    // Make sure the chain is both installed AND actually running, and resolve
+    // true once its sink is really in the graph.
+    //
+    // The daemon cannot be assumed up. filter-chain.service is
+    // BindsTo=pipewire.service, so anything that stops PipeWire — a resume, a
+    // package upgrade, `systemctl --user restart pipewire` — stops the chain
+    // too, and nothing brings it back: the stop is clean, so Restart=on-failure
+    // never fires, and BindsTo propagates stops but not starts. Meanwhile the
+    // configured default sink still names our sink, so WirePlumber quietly
+    // falls back to the hardware and the equalizer is simply out of the path
+    // with no error anywhere. Starting the service whenever the sink is missing
+    // is what makes the EQ survive that.
+    async ensureEngine() {
+        if (this.confNeedsInstall())
+            await this.installEngine(); // writes the conf and restarts
+        else if (await this._resolveNodes(true))
+            return true; // already running; do not interrupt audio
+        else
+            await this.startService();
+        return this._waitForSink();
+    }
+
+    async _waitForSink() {
+        for (let i = 0; i < SINK_POLL_TRIES; i++) {
+            if (this._destroyed)
+                return false;
+            if (await this._resolveNodes(true))
+                return true;
+            await this._sleep(SINK_POLL_MS);
+        }
+        return false;
     }
 
     // --- Node discovery ---------------------------------------------------
@@ -184,8 +251,9 @@ export class PipeWireEQ {
         } catch {
             // A stale node id is the expected failure (the filter-chain daemon
             // restarted and renumbered everything). Re-resolve once and retry;
-            // if that also fails the engine is genuinely absent and the
-            // indicator's own status check will surface it.
+            // if that also fails the engine is genuinely absent, and opening
+            // the menu is what puts it back (see the extension's
+            // recoverEngine).
             try {
                 if (await this._resolveNodes(true))
                     await this._setParams(job.gains, job.preampDb);
@@ -222,11 +290,21 @@ export class PipeWireEQ {
             this._cancellable);
     }
 
+    // Is our sink the one apps will actually land on?
+    //
+    // Deliberately NOT read from "Default Configured Devices": that section
+    // reports the stored *preference*, which goes on naming our sink even when
+    // the sink does not exist — precisely the case where we most need to hear
+    // that audio is not going through the EQ. The `*` markers in the live
+    // listing are the effective defaults, so match our node id against those.
     async isDefaultSink() {
+        if (!await this._resolveNodes(true))
+            return false;
         try {
             const out = await runAsync(['wpctl', 'status'], this._cancellable);
-            const tail = out.split('Default Configured Devices')[1] ?? '';
-            return tail.includes(C.SINK_NODE);
+            const marked = [...out.matchAll(/\*\s+(\d+)\./g)]
+                .map(m => Number(m[1]));
+            return marked.includes(this._sinkId);
         } catch {
             return false;
         }
