@@ -1,0 +1,10 @@
+{
+  "uuid": "gnomeeq@vanvonvan.github.io",
+  "name": "GnomeEQ",
+  "description": "An 11-band graphic equalizer for your whole system, one click away in the top bar. Equalizes every app — browser, games, VLC, music — by routing the default output through a native PipeWire filter chain. Bands sit on the ISO octave centres from 20 Hz to 20 kHz and are colour-coded by frequency range. Ships tuned presets, saves your own, and remembers the one you picked.",
+  "shell-version": ["46", "47", "48", "49", "50"],
+  "settings-schema": "org.gnome.shell.extensions.gnomeeq",
+  "gettext-domain": "gnomeeq",
+  "url": "https://github.com/vanvonvan/GnomeEQ",
+  "version-name": "0.1.0"
+}

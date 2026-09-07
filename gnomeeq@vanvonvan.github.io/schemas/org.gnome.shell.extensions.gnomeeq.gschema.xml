@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.gnomeeq"
+          path="/org/gnome/shell/extensions/gnomeeq/">
+
+    <!-- Live band gains in dB, one per band, low to high frequency.
+         Kept as the authoritative live state: a preset merely writes into
+         this, so nudging a slider afterwards is a first-class action. -->
+    <key name="band-gains" type="ad">
+      <default>[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]</default>
+      <summary>Per-band gain in dB</summary>
+    </key>
+
+    <!-- Preamp in dB, applied ahead of the bands to buy back headroom. -->
+    <key name="preamp" type="d">
+      <default>0.0</default>
+      <range min="-24.0" max="6.0"/>
+      <summary>Preamp gain in dB</summary>
+    </key>
+
+    <key name="auto-preamp" type="b">
+      <default>true</default>
+      <summary>Derive the preamp from the highest band boost</summary>
+      <description>Boosting bands can clip. When on, the preamp is set to
+      cancel the largest positive band gain.</description>
+    </key>
+
+    <key name="eq-enabled" type="b">
+      <default>true</default>
+      <summary>Apply the equalizer</summary>
+      <description>When off, all bands are driven flat, so the chain is
+      transparent. Audio keeps flowing through it either way.</description>
+    </key>
+
+    <!-- Name of the selected preset, or '' when the gains have been edited
+         away from any preset ("Custom"). Restored on login. -->
+    <key name="current-preset" type="s">
+      <default>'Flat'</default>
+      <summary>Selected preset name</summary>
+    </key>
+
+    <!-- User presets as JSON: { "name": [10 gains in dB], ... } -->
+    <key name="user-presets" type="s">
+      <default>'{}'</default>
+      <summary>User-saved presets, JSON encoded</summary>
+    </key>
+
+    <key name="claim-default-sink" type="b">
+      <default>true</default>
+      <summary>Make GnomeEQ the default output</summary>
+      <description>Apps follow the default sink, so this is what makes the
+      equalizer apply to everything without per-app setup.</description>
+    </key>
+
+    <!-- node.name of the physical device the chain feeds, '' to let
+         PipeWire pick. -->
+    <key name="output-device" type="s">
+      <default>''</default>
+      <summary>Physical output device the equalizer feeds</summary>
+    </key>
+
+    <key name="show-band-sliders" type="b">
+      <default>true</default>
+      <summary>Show the band sliders in the panel menu</summary>
+    </key>
+  </schema>
+</schemalist>

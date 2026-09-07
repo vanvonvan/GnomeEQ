@@ -1,0 +1,97 @@
+/* GnomeEQ — the menu is built from stock PopupMenu widgets, so this only
+   covers the few pieces the Shell theme has no opinion about. */
+
+/* Frequency labels sit in a fixed-width column so the sliders line up
+   regardless of label length ("20" vs "1.25k"). */
+.gnomeeq-band-label {
+    min-width: 3.4em;
+    font-feature-settings: "tnum";
+    text-align: left;
+    padding-right: 0.5em;
+    opacity: 0.85;
+}
+
+.gnomeeq-preamp-label {
+    font-weight: bold;
+    opacity: 1;
+}
+
+/* The dB readout, right-aligned in its own fixed column for the same reason
+   — tabular figures stop the sliders twitching as values change width. */
+.gnomeeq-band-value {
+    min-width: 3.2em;
+    font-feature-settings: "tnum";
+    text-align: right;
+    padding-left: 0.5em;
+    opacity: 0.7;
+}
+
+.gnomeeq-entry {
+    min-width: 14em;
+    margin: 0 0.5em;
+}
+
+/* Dim the panel icon while the equalizer is bypassed, so the state is
+   visible without opening the menu. */
+.gnomeeq-icon-off {
+    opacity: 0.45;
+}
+
+/* --- Frequency-range tints -------------------------------------------------
+
+   Each slider row is tinted by the perceptual range its band sits in, so the
+   spectrum is legible at a glance. Colour runs warm-to-cool as frequency
+   rises: that matches the visible spectrum and the vocabulary people already
+   use ("warm" bass, "bright" treble).
+
+   St CSS has no media queries, so a single value must work on both the light
+   and the dark shell theme — hence low alpha over the theme's own background
+   rather than opaque colours. Each rule carries a :hover variant because the
+   shell's own hover highlight is also a background-color, and would otherwise
+   be cancelled out by these, costing the row its feedback.
+
+   The 3px left rule is what actually separates neighbouring groups; all
+   eleven slider rows carry one (the preamp's is neutral) so the block stays
+   aligned with itself. */
+
+.gnomeeq-group-subbass {
+    background-color: rgba(211, 47, 47, 0.13);
+    border-left: 3px solid rgba(211, 47, 47, 0.55);
+}
+.gnomeeq-group-subbass:hover { background-color: rgba(211, 47, 47, 0.26); }
+
+.gnomeeq-group-bass {
+    background-color: rgba(245, 124, 0, 0.13);
+    border-left: 3px solid rgba(245, 124, 0, 0.55);
+}
+.gnomeeq-group-bass:hover { background-color: rgba(245, 124, 0, 0.26); }
+
+.gnomeeq-group-lowermids {
+    background-color: rgba(251, 192, 45, 0.13);
+    border-left: 3px solid rgba(251, 192, 45, 0.60);
+}
+.gnomeeq-group-lowermids:hover { background-color: rgba(251, 192, 45, 0.26); }
+
+.gnomeeq-group-midrange {
+    background-color: rgba(67, 160, 71, 0.13);
+    border-left: 3px solid rgba(67, 160, 71, 0.55);
+}
+.gnomeeq-group-midrange:hover { background-color: rgba(67, 160, 71, 0.26); }
+
+.gnomeeq-group-uppermids {
+    background-color: rgba(3, 155, 229, 0.13);
+    border-left: 3px solid rgba(3, 155, 229, 0.55);
+}
+.gnomeeq-group-uppermids:hover { background-color: rgba(3, 155, 229, 0.26); }
+
+.gnomeeq-group-treble {
+    background-color: rgba(126, 87, 194, 0.13);
+    border-left: 3px solid rgba(126, 87, 194, 0.55);
+}
+.gnomeeq-group-treble:hover { background-color: rgba(126, 87, 194, 0.26); }
+
+/* The preamp is not a band, so it gets no hue — just the same left rule so
+   it lines up with the rows above it. */
+.gnomeeq-group-none {
+    border-left: 3px solid transparent;
+}
