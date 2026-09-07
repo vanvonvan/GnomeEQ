@@ -27,7 +27,9 @@ install-conf: conf
 	@echo "Installed the chain and restarted filter-chain.service"
 
 # Headless logic tests — pure data/maths, no shell and no audio needed.
-test:
+# Depends on `schemas` because editing the .gschema.xml does not recompile it,
+# and a stale gschemas.compiled silently ships a wrong default.
+test: schemas
 	python3 tools/gen_sink_conf.py --check
 	gjs -m tests/constants-smoke.js
 	gjs -m tests/presets-smoke.js

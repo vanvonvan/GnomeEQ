@@ -11,6 +11,7 @@ extremes would make the 31 Hz and 16 kHz sliders feel dead while wasting
 headroom on subsonic/ultrasonic content nobody can hear. Peaking filters put
 the gain where the label says it is.
 """
+import ast
 import os
 import sys
 
@@ -132,6 +133,38 @@ def check_rendered_numbers():
     return problems
 
 
+def check_compiled_schema(schema_dir):
+    """The COMPILED schema's band-gains default must have one entry per band.
+
+    Editing the .gschema.xml does not recompile it, and neither `make conf` nor
+    a bare `make test` used to — so a stale gschemas.compiled shipped a
+    ten-element default after the grid grew to eleven. dconf then hands the
+    extension a short array on first run. sanitizeGains() pads it, so nothing
+    breaks loudly, which is exactly why this needs a test.
+    """
+    import subprocess
+    try:
+        out = subprocess.run(
+            ["gsettings", "--schemadir", schema_dir, "get",
+             "org.gnome.shell.extensions.gnomeeq", "band-gains"],
+            capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return [f"could not read the compiled schema: {exc}"]
+    if out.returncode:
+        return ["compiled schema unreadable (run `make schemas`): "
+                f"{out.stderr.strip()}"]
+    try:
+        value = ast.literal_eval(out.stdout.strip())
+    except (ValueError, SyntaxError):
+        return [f"unparseable band-gains default: {out.stdout.strip()!r}"]
+    if len(value) != len(BANDS):
+        return [f"compiled schema default has {len(value)} gains but there are "
+                f"{len(BANDS)} bands — run `make schemas`"]
+    if any(v != 0.0 for v in value):
+        return ["compiled schema default is not flat"]
+    return []
+
+
 def check_constants_js(path):
     """Fail loudly if lib/constants.js has drifted from this band table.
 
@@ -160,13 +193,17 @@ if __name__ == "__main__":
         here = os.path.dirname(os.path.abspath(__file__))
         js = os.path.join(os.path.dirname(here),
                           "gnomeeq@vanvonvan.github.io", "lib", "constants.js")
-        issues = check_rendered_numbers() + check_constants_js(js)
+        schemas = os.path.join(os.path.dirname(here),
+                               "gnomeeq@vanvonvan.github.io", "schemas")
+        issues = (check_rendered_numbers() + check_constants_js(js) +
+                  check_compiled_schema(schemas))
         for issue in issues:
             print(f"FAIL  {issue}")
         if not issues:
             print(f"ok    rendered config has well-formed numbers")
             print(f"ok    constants.js matches the {len(BANDS)}-band table "
                   f"({BANDS[0][0]} Hz .. {BANDS[-1][0]} Hz, Q={BAND_Q})")
+            print(f"ok    compiled schema default has {len(BANDS)} flat gains")
         sys.exit(1 if issues else 0)
 
     text = render()
